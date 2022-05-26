@@ -1,6 +1,3 @@
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
-
 import datetime  # For datetime objects
 import backtrader as bt # Import the backtrader platfor
 
