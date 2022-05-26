@@ -122,7 +122,61 @@ class RSIStrategy(bt.Strategy):
 
                 # Keep track of the created order to avoid a 2nd order
                 self.order = self.sell(size=self.amount)
-                
+
+
+class IchimokuStrategy(bt.Strategy):
+    params = (
+        ('maperiod', None),
+        ('quantity', None)
+    )
+
+    def __init__(self):
+        # Keep a reference to the "close" line in the data[0] dataseries
+        self.dataclose = self.datas[0].close
+
+        # To keep track of pending orders and buy price/commission
+        self.order = None
+        self.buyprice = None
+        self.buycomm = None
+        self.amount = None
+
+        # Add a Ichimoku indicator
+        self.ichimoku = bt.indicators.Ichimoku()
+
+    def notify_order(self, order):
+        if order.status in [order.Submitted, order.Accepted]:
+            # Buy/Sell order submitted/accepted to/by broker - Nothing to do
+            return
+
+        # Check if an order has been completed
+        # Attention: broker could reject order if not enough cash
+        if order.status in [order.Completed]:
+            if order.isbuy():
+                self.buyprice = order.executed.price
+                self.buycomm = order.executed.comm
+
+        self.order = None
+
+    def next(self):
+
+        # Check if an order is pending ... if yes, we cannot send a 2nd one
+        if self.order:
+            return
+
+        # Check if we are in the market
+        if not self.position:
+
+            # Not yet ... we MIGHT BUY if ...
+            if self.ichimoku < 30:
+                # Keep track of the created order to avoid a 2nd order
+                self.amount = (self.broker.getvalue() * self.params.quantity) / self.dataclose[0]
+                self.order = self.buy(size=self.amount)
+        else:
+            # Already in the market ... we might sell
+            if self.rsi > 70:
+                # Keep track of the created order to avoid a 2nd order
+                self.order = self.sell(size=self.amount)
+
 
 # ______________________ End Strategy Class
 
@@ -211,6 +265,8 @@ def runbacktest(datapath, start, end, period, strategy, commission_val=None, por
         cerebro.addstrategy(SMAStrategy, maperiod=period, quantity=quantity)
     elif strategy == 'RSI':
         cerebro.addstrategy(RSIStrategy, maperiod=period, quantity=quantity)
+    elif strategy == "Ichimoku":
+        cerebro.addstrategy(IchimokuStrategy, maperiod=period, quantity=quantity)
     else :
         print('no strategy')
         exit()
